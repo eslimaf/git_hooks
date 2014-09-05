@@ -1,45 +1,76 @@
-#!/usr/bin/env ruby
+#!/usr/bin/env python
+import sys
+import re
+import subprocess,shlex
 
-refname = ARGV[0]
-oldrev  = ARGV[1]
-newrev  = ARGV[2]
-user    = ENV['USER']
+refname = sys.argv[1]
+oldrev = sys.argv[2]
+newrev = sys.argv[3]
 
-puts "Enforcing Policies... \n(#{refname}) (#{oldrev[0,6]}) (#{newrev[0,6]})"
+print refname
+print oldrev
+print newrev
 
-$regex = /\[[A-Z]*-{1}[0-9]*\]:.*/
-$empty_regex = /^0+$/
-$branch_naming_regex = /refs\/heads\/feature-{1}.*|bugfix-{1}MRS-{1}[0-9]*/
+# Conventions helps
+branch_convention_help = "{feature|bugfix}_{CR} ex: feature_mrs-893"
 
-def check_branch_name(refname)
-	if !$branch_naming_regex.match(refname)
-		puts "[POLICY]: #{refname} goes against the branch naming convention"
-		exit 1
-	end
-end
+revision_empty_checker = re.compile(r"^0+$")
+commit_message_checker = re.compile(r"\[[A-Z]*-{1}[0-9]*\]:.*")
+branch_name_checker = re.compile(r"refs\/heads\/feature_{1}.*|bugfix_{1}MRS-{1}[0-9]*")
 
-def get_rev_list(refname,oldrev,newrev)
-	if $empty_regex.match(oldrev)
-		check_branch_name(refname)
-		return `git rev-list #{newrev}..#{newrev}`.split("\n")
-	elsif $empty_regex.match(newrev)
-		return `git rev-list #{oldrev}..#{oldrev}`.split("\n")
-	else
-		return `git rev-list #{oldrev}..#{newrev}`.split("\n")
-	end
-end
+def get_rev_list():
+	sha_range = ""
+	if revision_empty_checker.match(oldrev):
+		sha_range = newrev+".."+newrev		
+	elif revision_empty_checker.match(newrev):
+		sha_range = oldrev+".."+oldrev
+	else:
+		sha_range = oldrev+".."+newrev
 
-# enforced custom commit message format
-def check_message_format(refname,oldrev,newrev)
-  missed_revs = get_rev_list(refname,oldrev,newrev)
-  missed_revs.each do |rev|
-    message = `git cat-file commit #{rev} | sed '1,/^$/d'`
-    if !$regex.match(message)
-  		puts "[POLICY] Your message is not formatted correctly"
-  		puts message
-  		exit 1
-  	end
-  end
-end
+	print sha_range
 
-check_message_format(refname,oldrev,newrev)
+	revisions = subprocess.check_output(["git","rev-list",sha_range]).split();
+	print revisions
+	return revisions;
+
+def check_branch_naming_convention():
+	if not branch_name_checker.match(revname):
+		print '[POLICY]: Branch naming convention'
+		print '[ERROR]:  {} does not match the defined naming convention'.format(revname)
+		print '[CONVENTION]: {}'.format(branch_convention_help)
+		exit(1)
+	return;
+
+def check_commit_message():
+	missed_revs = get_rev_list()
+
+  	for rev in missed_revs:
+  	    print rev;
+  	    cmd = "git cat-file commit %s" %(rev)
+  	    print cmd
+	    p1 = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
+	    p2 = subprocess.Popen(shlex.split("sed '1,/^$/d'"),stdin=p1.stdout,stdout=subprocess.PIPE)
+	    p1.stdout.close()
+	    message = p2.communicate()[0]
+	    if not commit_message_checker.match(message.strip()):
+	  		print "[POLICY] Your message is not formatted correctly"
+			print '[ERROR]:  {} does not match the defined naming convention'.format(message.strip())
+			print '[CONVENTION]: {}'.format(branch_convention_help)
+	  		exit(1)
+	return;
+
+def main():
+	#check if is a branch creation
+	if revision_empty_checker.match(oldrev):
+		print "New branch creation, checking naming convention"
+		check_branch_naming_convention();
+
+	if not revision_empty_checker.match(newrev):
+		#check commit message convention
+		check_commit_message();
+	else:
+		print "Deleting a branch"
+	
+	return;
+
+main();
