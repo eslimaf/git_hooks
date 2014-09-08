@@ -11,8 +11,9 @@ print "Updating server info for dumb transports"
 subprocess.call(["git","update-server-info"])
 
 # Gets jira auth config
+jira_url = subprocess.check_output(["git","config","--get","jira.url"]).strip()
 jira_username = subprocess.check_output(["git","config","--get","jira.username"]).strip()
 jira_password = subprocess.check_output(["git","config","--get","jira.password"]).strip()
 
-jira_options = {'server': 'http://jira.cesar.org.br:8080'}
+jira_options = {'server': jira_url}
 jira=JIRA(options=jira_options,basic_auth=(jira_username,jira_password))
