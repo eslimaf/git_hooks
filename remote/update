@@ -80,8 +80,8 @@ def check_commit_message():
 			jira_issue = message_issue.group(0).strip('[').strip(']')
 			cmd = "git cat-file commit %s" %(rev)
 			p1 = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
-			jira_comment = '{quote}\n{}\n{quote}'.format(p1.communicate()[0])
-			add_comment_to_jira_issue(jira_issue,jira_comment)
+			jira_comment = p1.communicate()[0]
+			add_comment_to_jira_issue(jira_issue,jira_comment,rev)
 	return;
 
 def check_tag_naming_convention():
@@ -92,9 +92,10 @@ def check_tag_naming_convention():
 		exit(1)
 	return;
 
-def add_comment_to_jira_issue(issue,comment):
+def add_comment_to_jira_issue(issue,comment,revision):
 	print 'Updating jira issue: {}'.format(issue)
-	jira.add_comment(issue, comment)
+	formatted_comment = '{{panel:title=(+) New commit #{1}}} {0} {{panel}}'.format(comment,revision)
+	jira.add_comment(issue, formatted_comment)
 	return;
 
 def main():
