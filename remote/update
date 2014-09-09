@@ -9,7 +9,10 @@ oldrev = sys.argv[2]
 newrev = sys.argv[3]
 
 # Gets jira auth config
-is_jira_integration_on = True
+IS_JIRA_INTEGRATION_ON = True
+IS_ADD_COMMENT_ON_COMMIT_ON = True
+IS_ADD_COMMENT_ON_BRANCH_CREATION_ON = True
+
 jira_url = subprocess.check_output(["git","config","--get","jira.url"]).strip()
 jira_username = subprocess.check_output(["git","config","--get","jira.username"]).strip()
 jira_password = subprocess.check_output(["git","config","--get","jira.password"]).strip()
@@ -20,7 +23,7 @@ jira_options = {'server': jira_url}
 jira = JIRA(options=jira_options,basic_auth=(jira_username,jira_password))
 
 # Conventions helps
-branch_convention_help = "{feature|bugfix}_{CR} ex: feature_mrs-893"
+branch_convention_help = "{feature|bugfix}_{CR} ex: feature_id-893"
 comment_convention_help = "[ID-{NUMBER}]: {Descriptive comment}"
 tag_convention_help = "Not defined"
 
@@ -58,6 +61,10 @@ def check_branch_naming_convention():
 		print '[ERROR]:  "{}" does not match the defined naming convention'.format(refname)
 		print '[CONVENTION]: {}'.format(branch_convention_help)
 		exit(1)
+	if (IS_JIRA_INTEGRATION_ON and IS_ADD_COMMENT_ON_BRANCH_CREATION_ON):
+		formatted_comment = '{{panel:title=(+) New Branch}} {0} {{panel}}'.format(refname)
+		issue = '' #TODO: parse the jira id
+		add_comment_to_jira_issue(issue,formatted_comment)
 	return;
 
 def check_commit_message():
@@ -74,14 +81,15 @@ def check_commit_message():
 			print '[ERROR]:  "{}" does not match the defined comment convention'.format(message.strip())
 			print '[CONVENTION]: {}'.format(comment_convention_help)
 	  		exit(1)
-	if is_jira_integration_on:
+	if (IS_JIRA_INTEGRATION_ON and IS_ADD_COMMENT_ON_COMMIT_ON):
 	    for rev in missed_revs:
 			message_issue = jira_issue_pattern.search(message.strip())
 			jira_issue = message_issue.group(0).strip('[').strip(']')
 			cmd = "git cat-file commit %s" %(rev)
 			p1 = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
 			jira_comment = p1.communicate()[0]
-			add_comment_to_jira_issue(jira_issue,jira_comment,rev)
+			formatted_comment = '{{panel:title=(+) New commit #{1}}} {0} {{panel}}'.format(jira_comment,rev)
+			add_comment_to_jira_issue(jira_issue,formatted_comment)
 	return;
 
 def check_tag_naming_convention():
@@ -92,10 +100,9 @@ def check_tag_naming_convention():
 		exit(1)
 	return;
 
-def add_comment_to_jira_issue(issue,comment,revision):
+def add_comment_to_jira_issue(issue,comment):
 	print 'Updating jira issue: {}'.format(issue)
-	formatted_comment = '{{panel:title=(+) New commit #{1}}} {0} {{panel}}'.format(comment,revision)
-	jira.add_comment(issue, formatted_comment)
+	jira.add_comment(issue, comment)
 	return;
 
 def main():
