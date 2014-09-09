@@ -2,22 +2,43 @@
 import sys
 import re
 import subprocess,shlex
+from jira.client import JIRA
 
 refname = sys.argv[1]
 oldrev = sys.argv[2]
 newrev = sys.argv[3]
 
-print refname
-print oldrev
-print newrev
+# Gets jira auth config
+is_jira_integration_on = True
+jira_url = subprocess.check_output(["git","config","--get","jira.url"]).strip()
+jira_username = subprocess.check_output(["git","config","--get","jira.username"]).strip()
+jira_password = subprocess.check_output(["git","config","--get","jira.password"]).strip()
+
+jira_issue_pattern = re.compile(r"\[[A-Z].*-{1}[0-9].*\]")
+
+jira_options = {'server': jira_url}
+jira = JIRA(options=jira_options,basic_auth=(jira_username,jira_password))
 
 # Conventions helps
 branch_convention_help = "{feature|bugfix}_{CR} ex: feature_mrs-893"
 comment_convention_help = "[ID-{NUMBER}]: {Descriptive comment}"
+tag_convention_help = "Not defined"
 
+#Checks if revisions are empty or 0000000
 revision_empty_checker = re.compile(r"^0+$")
+
+#RegEx for your commit message
 commit_message_checker = re.compile(r"\[[A-Z]*-{1}[0-9]*\]:.*")
+
+#Check if it references to heads
+refs_to_head_checker = re.compile(r"refs\/heads\/.*")
+#RegEx for your branch naming conventions
 branch_name_checker = re.compile(r"refs\/heads\/feature_{1}.*|bugfix_{1}MRS-{1}[0-9]*")
+
+#Check if it references to tags
+refs_to_tags_checker = re.compile(r"refs\/tags\/.*")
+#RegEx for your tag naming convetions
+tags_name_checker = re.compile(r"refs\/tags\/.*")
 
 def get_rev_list():
 	sha_range = ""
@@ -28,16 +49,13 @@ def get_rev_list():
 	else:
 		sha_range = oldrev+".."+newrev
 
-	print sha_range
-
 	revisions = subprocess.check_output(["git","rev-list",sha_range]).split();
-	print revisions
 	return revisions;
 
 def check_branch_naming_convention():
-	if not branch_name_checker.match(revname):
+	if not branch_name_checker.match(refname):
 		print '[POLICY]: Branch naming convention'
-		print '[ERROR]:  "{}" does not match the defined naming convention'.format(revname)
+		print '[ERROR]:  "{}" does not match the defined naming convention'.format(refname)
 		print '[CONVENTION]: {}'.format(branch_convention_help)
 		exit(1)
 	return;
@@ -56,17 +74,43 @@ def check_commit_message():
 			print '[ERROR]:  "{}" does not match the defined comment convention'.format(message.strip())
 			print '[CONVENTION]: {}'.format(comment_convention_help)
 	  		exit(1)
+	if is_jira_integration_on:
+	    for rev in missed_revs:
+			message_issue = jira_issue_pattern.search(message.strip())
+			jira_issue = message_issue.group(0).strip('[').strip(']')
+			cmd = "git cat-file commit %s" %(rev)
+			p1 = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
+			jira_comment = '{quote}\n{}\n{quote}'.format(p1.communicate()[0])
+			add_comment_to_jira_issue(jira_issue,jira_comment)
+	return;
+
+def check_tag_naming_convention():
+	if not tags_name_checker.match(refname):
+		print '[POLICY]: Tag naming convention'
+		print '[ERROR]:  "{}" does not match the defined naming convention'.format(refname)
+		print '[CONVENTION]: {}'.format(tag_convention_help)
+		exit(1)
+	return;
+
+def add_comment_to_jira_issue(issue,comment):
+	print 'Updating jira issue: {}'.format(issue)
+	jira.add_comment(issue, comment)
 	return;
 
 def main():
 	#check if is a branch creation
-	if revision_empty_checker.match(oldrev):
+	if (revision_empty_checker.match(oldrev) and refs_to_head_checker.match(refname)):
 		print "New branch creation, checking naming convention"
 		check_branch_naming_convention();
 
+	if refs_to_tags_checker.match(refname):
+		print "New tag creation, checking naming convention"
+		check_tag_naming_convention();
+
 	if not revision_empty_checker.match(newrev):
-		#check commit message convention
+		print "New commit, checking message convention"
 		check_commit_message();
+
 	else:
 		print "Deleting a branch"
 	
