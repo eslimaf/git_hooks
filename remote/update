@@ -98,6 +98,10 @@ def check_commit_message():
 	    for rev in missed_revs:
 			message_issue = jira_issue_pattern.search(message.strip())
 			jira_issue = message_issue.group(0).strip('[').strip(']')
+			
+			# Checks jira issue status
+			check_jira_issue_status_on_development(jira_issue)
+
 			cmd = "git cat-file commit %s" %(rev)
 			p1 = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE)
 			jira_comment = p1.communicate()[0]
@@ -112,6 +116,15 @@ def check_tag_naming_convention():
 		print '[CONVENTION]: {}'.format(tag_convention_help)
 		exit(1)
 	return;
+
+def check_jira_issue_status_on_development(issue):
+	jira_issue = jira.issue(issue, fields='status')
+	if (str(jira_issue.fields.status) != 'ON DEVELOPMENT'):
+		print '[JIRA]: {0} status is {1}'.format(issue, jira_issue.fields.status)
+		print '[POLICY]: JIRA issue must be ON DEVELOPMENT status'
+		print '[RESOLUTION]: Transition JIRA issue {} to ON DEVELOPMENT and try again'.format(issue)
+		exit(1)
+		
 
 def add_comment_to_jira_issue(issue,comment):
 	print 'Updating jira issue: {}'.format(issue)
