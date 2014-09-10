@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 import sys
 import re
-import subprocess,shlex
+import subprocess
+import shlex
 from jira.client import JIRA
 
 refname = sys.argv[1]
@@ -17,13 +18,13 @@ jira_url = subprocess.check_output(["git","config","--get","jira.url"]).strip()
 jira_username = subprocess.check_output(["git","config","--get","jira.username"]).strip()
 jira_password = subprocess.check_output(["git","config","--get","jira.password"]).strip()
 
-jira_issue_pattern = re.compile(r"\[[A-Z].*-{1}[0-9].*\]")
+jira_issue_pattern = re.compile(r"(\[[A-Za-z].*-{1}[0-9].*\])|(\/[a-z]*-{1}[0-9].*)")
 
 jira_options = {'server': jira_url}
 jira = JIRA(options=jira_options,basic_auth=(jira_username,jira_password))
 
 # Conventions helps
-branch_convention_help = "{feature|bugfix}_{CR} ex: feature_id-893"
+branch_convention_help = "{feature|bugfix}/{id}_{optional short description} ex: feature/id-893_my-feature"
 comment_convention_help = "[ID-{NUMBER}]: {Descriptive comment}"
 tag_convention_help = "Not defined"
 
@@ -36,7 +37,7 @@ commit_message_checker = re.compile(r"\[[A-Z]*-{1}[0-9]*\]:.*")
 #Check if it references to heads
 refs_to_head_checker = re.compile(r"refs\/heads\/.*")
 #RegEx for your branch naming conventions
-branch_name_checker = re.compile(r"refs\/heads\/feature_{1}.*|bugfix_{1}MRS-{1}[0-9]*")
+branch_name_checker = re.compile(r"refs\/heads\/(feature|bugfix)\/{1}[a-z]*-{1}[0-9]*((_{1}.*)?)")
 
 #Check if it references to tags
 refs_to_tags_checker = re.compile(r"refs\/tags\/.*")
@@ -63,8 +64,10 @@ def check_branch_naming_convention():
 		exit(1)
 	if (IS_JIRA_INTEGRATION_ON and IS_ADD_COMMENT_ON_BRANCH_CREATION_ON):
 		formatted_comment = '{{panel:title=(+) New Branch}} {0} {{panel}}'.format(refname)
-		issue = '' #TODO: parse the jira id
-		add_comment_to_jira_issue(issue,formatted_comment)
+		search_result = jira_issue_pattern.search(refname.strip())
+		if( None != search_result ):
+			issue = search_result.group(0).split('_',1)[0].strip('/')
+			add_comment_to_jira_issue(issue,formatted_comment)
 	return;
 
 def check_commit_message():
@@ -81,6 +84,7 @@ def check_commit_message():
 			print '[ERROR]:  "{}" does not match the defined comment convention'.format(message.strip())
 			print '[CONVENTION]: {}'.format(comment_convention_help)
 	  		exit(1)
+
 	if (IS_JIRA_INTEGRATION_ON and IS_ADD_COMMENT_ON_COMMIT_ON):
 	    for rev in missed_revs:
 			message_issue = jira_issue_pattern.search(message.strip())
@@ -121,7 +125,6 @@ def main():
 
 	else:
 		print "Deleting a branch"
-	
 	return;
 
 main();
