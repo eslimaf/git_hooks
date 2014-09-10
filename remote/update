@@ -63,9 +63,18 @@ def check_branch_naming_convention():
 		print '[CONVENTION]: {}'.format(branch_convention_help)
 		exit(1)
 	if (IS_JIRA_INTEGRATION_ON and IS_ADD_COMMENT_ON_BRANCH_CREATION_ON):
-		formatted_comment = '{{panel:title=(+) New Branch}} {0} {{panel}}'.format(refname)
 		search_result = jira_issue_pattern.search(refname.strip())
 		if( None != search_result ):
+			formatted_comment = '{{panel:title=(+) New Branch}} {0} {{panel}}'.format(refname)
+			issue = search_result.group(0).split('_',1)[0].strip('/')
+			add_comment_to_jira_issue(issue,formatted_comment)
+	return;
+
+def comment_on_jira_issue_upon_branch_deletion():
+	if (IS_JIRA_INTEGRATION_ON and IS_ADD_COMMENT_ON_BRANCH_CREATION_ON):
+		search_result = jira_issue_pattern.search(refname.strip())
+		if( None != search_result ):
+			formatted_comment = '{{panel:title=(-) Branch Deleted}} {0} {{panel}}'.format(refname)
 			issue = search_result.group(0).split('_',1)[0].strip('/')
 			add_comment_to_jira_issue(issue,formatted_comment)
 	return;
@@ -125,6 +134,7 @@ def main():
 
 	else:
 		print "Deleting a branch"
+		comment_on_jira_issue_upon_branch_deletion();
 	return;
 
 main();
