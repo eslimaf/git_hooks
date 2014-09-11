@@ -25,3 +25,4 @@ Features so far
 * Add a comment on JIRA issue after a commit
 * Add a comment on JIRA issue after new branch creation
 * Add a comment on JIRA issue after branch deletion
+* Block push if JIRA issue is not on a certain status (ex. ON DEVELOPMENT)
